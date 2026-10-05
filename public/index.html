@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IronGate Insights — Executive Dashboard</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --navy: #1a3a5c;
+    --navy-2: #2e5f8a;
+    --bg: #f7f7f5;
+    --card: #fff;
+    --muted: #666;
+    --muted-2: #888;
+    --border: #e5e5e5;
+    --error-bg: #ffe6ea;
+    --error-fg: #b00020;
+  }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: #222;
+    padding: 24px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    margin-bottom: 24px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  h1 { color: var(--navy); margin: 0; font-size: 26px; letter-spacing: -.3px; }
+  .sub { color: var(--muted); margin: 0; font-size: 14px; }
+
+  /* --- KPI cards --- */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.06);
+    border: 1px solid rgba(0,0,0,.03);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+  .card h3 {
+    margin: 0 0 8px;
+    color: #555;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+  }
+  .card .value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.1;
+  }
+  .card .value.loading { color: #ccc; }
+  .card .sub2 { font-size: 12px; color: var(--muted-2); margin-top: 6px; }
+
+  /* --- Chart grid --- */
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .chart-card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.06);
+    border: 1px solid rgba(0,0,0,.03);
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-card h3 {
+    margin: 0 0 16px;
+    color: var(--navy);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .canvas-wrap { position: relative; height: 300px; }
+  canvas { max-height: 100%; }
+
+  /* --- Ad-hoc SQL panel --- */
+  .sql-panel {
+    margin-top: 32px;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.06);
+    border: 1px solid rgba(0,0,0,.03);
+  }
+  .sql-panel h3 {
+    margin: 0 0 4px;
+    color: var(--navy);
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .sql-panel .hint {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: #777;
+  }
+  .sql-panel .hint code {
+    background: #f0f0ee;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11.5px;
+  }
+  .sql-panel textarea {
+    width: 100%;
+    min-height: 110px;
+    font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    resize: vertical;
+    box-sizing: border-box;
+    background: #fcfcfc;
+    color: #222;
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .sql-panel textarea:focus {
+    border-color: var(--navy);
+    box-shadow: 0 0 0 3px rgba(26,58,92,.1);
+    background: #fff;
+  }
+  .sql-panel .row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .sql-panel button {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    padding: 9px 20px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s ease, transform .05s ease;
+  }
+  .sql-panel button:hover { background: var(--navy-2); }
+  .sql-panel button:active { transform: translateY(1px); }
+  .sql-panel button:disabled { background: #a8b5c4; cursor: not-allowed; }
+  .sql-panel button.secondary {
+    background: #eee;
+    color: #333;
+  }
+  .sql-panel button.secondary:hover { background: #ddd; }
+  .sql-panel button.ghost {
+    background: transparent;
+    color: var(--navy);
+    border: 1px solid var(--border);
+  }
+  .sql-panel button.ghost:hover { background: #f4f6f8; }
+  .sql-panel .meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+  .sql-panel .examples {
+    font-size: 12px;
+    color: #555;
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .sql-panel .examples .label { color: #888; margin-right: 2px; }
+  .sql-panel .examples code {
+    background: #f2f2f0;
+    padding: 3px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    transition: background .15s ease, color .15s ease;
+  }
+  .sql-panel .examples code:hover {
+    background: var(--navy);
+    color: #fff;
+  }
+
+  /* --- Results table --- */
+  .sql-results {
+    margin-top: 16px;
+    overflow: auto;
+    max-height: 420px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .sql-results:empty { display: none; }
+  .sql-results table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+  }
+  .sql-results th, .sql-results td {
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .sql-results th:last-child, .sql-results td:last-child { border-right: none; }
+  .sql-results th {
+    background: #f4f6f8;
+    color: var(--navy);
+    position: sticky;
+    top: 0;
+    font-weight: 600;
+    z-index: 1;
+    border-bottom: 2px solid #d9e0e8;
+  }
+  .sql-results tbody tr:hover td { background: #f7f9fb; }
+  .sql-results tr:nth-child(even) td { background: #fafafa; }
+  .sql-results tr:nth-child(even):hover td { background: #f7f9fb; }
+
+  /* --- Status messages --- */
+  .msg {
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    margin-top: 16px;
+  }
+  .msg.error {
+    color: var(--error-fg);
+    background: var(--error-bg);
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .msg.info {
+    color: #555;
+    background: #f4f6f8;
+    font-style: italic;
+  }
+  .msg.banner {
+    color: #663;
+    background: #ffe;
+    border: 1px solid #cc9;
+    margin: 0 0 16px;
+    font-family: inherit;
+  }
+
+  footer {
+    margin-top: 32px;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    padding-bottom: 16px;
+  }
+
+  @media (max-width: 900px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .grid2 { grid-template-columns: 1fr; }
+    .card .value { font-size: 24px; }
+  }
+  @media (max-width: 480px) {
+    .kpis { grid-template-columns: 1fr; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>IronGate Insights</h1>
+    <p class="sub">Property Transaction Analytics — live from <code>FACT_PROPERTY_TRANSACTION</code></p>
+  </div>
+</header>
+
+<!-- KPI CARDS -->
+<div class="kpis">
+  <div class="card">
+    <h3>Total Sales Revenue</h3>
+    <div class="value loading" id="kpi-rev">…</div>
+    <div class="sub2">50 closed sales</div>
+  </div>
+  <div class="card">
+    <h3>Avg Days on Market</h3>
+    <div class="value loading" id="kpi-dom">…</div>
+    <div class="sub2">Listing → sale</div>
+  </div>
+  <div class="card">
+    <h3>Late Rent %</h3>
+    <div class="value loading" id="kpi-late">…</div>
+    <div class="sub2">15 of 50 instalments</div>
+  </div>
+  <div class="card">
+    <h3>Avg Maintenance Days</h3>
+    <div class="value loading" id="kpi-maint">…</div>
+    <div class="sub2">50 requests</div>
+  </div>
+</div>
+
+<!-- CHARTS -->
+<div class="grid2">
+  <div class="chart-card">
+    <h3>Sales Revenue by Branch City</h3>
+    <div class="canvas-wrap"><canvas id="ch-city"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Sales Revenue by Year / Quarter</h3>
+    <div class="canvas-wrap"><canvas id="ch-trend"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Avg Days on Market by Size Band</h3>
+    <div class="canvas-wrap"><canvas id="ch-dom"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Revenue by Size Band × Quarter</h3>
+    <div class="canvas-wrap"><canvas id="ch-pivot"></canvas></div>
+  </div>
+</div>
+
+<!-- AD-HOC SQL -->
+<div class="sql-panel">
+  <h3>Ad-Hoc SQL Query</h3>
+  <p class="hint">Run any <code>SELECT</code> / <code>WITH</code> query against <code>irongate_dw.db</code> — safe, read-only. Press <strong>Ctrl + Enter</strong> to run.</p>
+  <textarea id="sql-input" spellcheck="false" placeholder="SELECT * FROM FACT_PROPERTY_TRANSACTION LIMIT 10;"></textarea>
+  <div class="row">
+    <button id="sql-run">Run Query</button>
+    <button id="sql-clear" class="secondary">Clear</button>
+    <button id="sql-csv" class="ghost" disabled>Download CSV</button>
+    <span class="meta" id="sql-meta"></span>
+  </div>
+  <div class="examples">
+    <span class="label">Try:</span>
+    <code data-sql="SELECT tt.Type_Code, COUNT(*) AS n FROM FACT_PROPERTY_TRANSACTION f JOIN DIM_TRANSACTION_TYPE tt USING(Transaction_Type_Key) GROUP BY tt.Type_Code;">rows by type</code>
+    <code data-sql="SELECT b.City, ROUND(SUM(f.Sale_Price),2) AS revenue FROM FACT_PROPERTY_TRANSACTION f JOIN DIM_TRANSACTION_TYPE t USING(Transaction_Type_Key) JOIN DIM_BRANCH b USING(Branch_Key) WHERE t.Type_Code='SALE' GROUP BY b.City ORDER BY revenue DESC;">revenue by city</code>
+    <code data-sql="SELECT p.Size_Band, COUNT(*) AS n, ROUND(AVG(f.Elapsed_Days),1) AS avg_dom FROM FACT_PROPERTY_TRANSACTION f JOIN DIM_TRANSACTION_TYPE t USING(Transaction_Type_Key) JOIN DIM_PROPERTY p USING(Property_Key) WHERE t.Type_Code='SALE' GROUP BY p.Size_Band ORDER BY avg_dom DESC;">DOM by size band</code>
+    <code data-sql="SELECT * FROM DIM_TRANSACTION_TYPE;">transaction types</code>
+    <code data-sql="SELECT * FROM DIM_PROPERTY LIMIT 5;">first 5 properties</code>
+    <code data-sql="SELECT * FROM FACT_PROPERTY_TRANSACTION LIMIT 10;">first 10 facts</code>
+  </div>
+  <div class="sql-results" id="sql-results"></div>
+</div>
+
+<footer>IronGate Insights · IFS02B1 Group B · Data Warehouse &amp; Business Intelligence</footer>
+
+<!-- ============ DASHBOARD SCRIPT ============ -->
+<script>
+const fmtR = n => 'R' + (n / 1e6).toFixed(1) + 'm';
+const palette = ['#1a3a5c', '#2e5f8a', '#4a86b8', '#7eb3d4', '#b3d4e8', '#d4a373', '#a97c50', '#7a5a3a'];
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status} on ${url}`);
+  return r.json();
+}
+
+(async () => {
+  try {
+    // --- KPIs ---
+    const k = await getJSON('/api/kpis');
+    const setVal = (id, txt) => {
+      const el = document.getElementById(id);
+      el.textContent = txt;
+      el.classList.remove('loading');
+    };
+    setVal('kpi-rev',   fmtR(k.total_sales_revenue));
+    setVal('kpi-dom',   k.avg_days_on_market + ' days');
+    setVal('kpi-late',  k.late_rent_percent + '%');
+    setVal('kpi-maint', k.avg_maintenance_days + ' days');
+
+    // --- Chart: sales by city (bar) ---
+    const cities = await getJSON('/api/olap/slice/sales-by-city');
+    new Chart(document.getElementById('ch-city'), {
+      type: 'bar',
+      data: {
+        labels: cities.map(c => c.Branch_City),
+        datasets: [{
+          label: 'Revenue',
+          data: cities.map(c => c.Total_Sales_Revenue),
+          backgroundColor: palette,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { ticks: { callback: v => fmtR(v) } },
+          x: { ticks: { maxRotation: 45, minRotation: 0, autoSkip: false } }
+        }
+      }
+    });
+
+    // --- Chart: trend by year/quarter (line) ---
+    const trend = await getJSON('/api/olap/drilldown/sales-by-month');
+    const buckets = {};
+    const order = [];
+    trend.forEach(r => {
+      const key = r.Year + ' Q' + r.Quarter;
+      if (!(key in buckets)) { buckets[key] = 0; order.push(key); }
+      buckets[key] += r.Total_Sales_Revenue;
+    });
+    new Chart(document.getElementById('ch-trend'), {
+      type: 'line',
+      data: {
+        labels: order,
+        datasets: [{
+          label: 'Revenue',
+          data: order.map(k => buckets[k]),
+          borderColor: '#1a3a5c',
+          backgroundColor: 'rgba(26,58,92,.15)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointBackgroundColor: '#1a3a5c'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { ticks: { callback: v => fmtR(v) } },
+          x: { ticks: { maxRotation: 60, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } }
+        }
+      }
+    });
+
+    // --- Chart: DOM by size band (horizontal bar) ---
+    const pivot = await getJSON('/api/olap/pivot/size-band-quarter');
+    const dice  = await getJSON('/api/olap/dice/sales-by-size-band');
+    const domMap = Object.fromEntries(dice.map(r => [r.Size_Band, r.Avg_Days_On_Market]));
+    const sizeBands = pivot.map(p => p.Size_Band);
+    new Chart(document.getElementById('ch-dom'), {
+      type: 'bar',
+      data: {
+        labels: sizeBands,
+        datasets: [{
+          label: 'Days',
+          data: sizeBands.map(b => domMap[b] || 0),
+          backgroundColor: '#d4a373',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true } }
+      }
+    });
+
+    // --- Chart: pivot size band × quarter (grouped bar) ---
+    new Chart(document.getElementById('ch-pivot'), {
+      type: 'bar',
+      data: {
+        labels: sizeBands,
+        datasets: ['Q1', 'Q2', 'Q3', 'Q4'].map((q, i) => ({
+          label: q,
+          data: pivot.map(p => p[`Q${i + 1}_Revenue`]),
+          backgroundColor: palette[i],
+          borderRadius: 3
+        }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+        scales: { y: { ticks: { callback: v => fmtR(v) } } }
+      }
+    });
+
+  } catch (err) {
+    console.error('Dashboard load failed:', err);
+    document.body.insertAdjacentHTML('afterbegin',
+      `<div class="msg banner">Dashboard error: ${err.message}. Check the browser console (F12) for details.</div>`);
+  }
+})();
+</script>
+
+<!-- ============ AD-HOC SQL SCRIPT ============ -->
+<script>
+(function () {
+  const input    = document.getElementById('sql-input');
+  const runBtn   = document.getElementById('sql-run');
+  const clrBtn   = document.getElementById('sql-clear');
+  const csvBtn   = document.getElementById('sql-csv');
+  const meta     = document.getElementById('sql-meta');
+  const results  = document.getElementById('sql-results');
+
+  let lastData = null;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  function renderTable(data) {
+    if (!data.rows || data.rows.length === 0) {
+      results.innerHTML = '<div class="msg info">No rows returned.</div>';
+      meta.textContent = '0 rows';
+      csvBtn.disabled = true;
+      return;
+    }
+    const cols = data.columns;
+    const thead = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+    const tbody = data.rows.map(r =>
+      '<tr>' + cols.map(c => {
+        const v = r[c];
+        return `<td>${v === null || v === undefined ? '' : escapeHtml(v)}</td>`;
+      }).join('') + '</tr>'
+    ).join('');
+    results.innerHTML = `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+    meta.textContent = `${data.rowCount} row${data.rowCount === 1 ? '' : 's'}`;
+    csvBtn.disabled = false;
+  }
+
+  async function runQuery() {
+    const sql = input.value.trim();
+    if (!sql) return;
+    meta.textContent = 'Running…';
+    results.innerHTML = '';
+    csvBtn.disabled = true;
+    runBtn.disabled = true;
+    try {
+      const r = await fetch('/api/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql })
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        results.innerHTML = `<div class="msg error">${escapeHtml(data.error || 'Query failed')}</div>`;
+        meta.textContent = '';
+        return;
+      }
+      lastData = data;
+      renderTable(data);
+    } catch (err) {
+      results.innerHTML = `<div class="msg error">Network error: ${escapeHtml(err.message)}</div>`;
+      meta.textContent = '';
+    } finally {
+      runBtn.disabled = false;
+    }
+  }
+
+  function downloadCSV() {
+    if (!lastData || !lastData.rows.length) return;
+    const cols = lastData.columns;
+    const esc = v => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [cols.join(','), ...lastData.rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `irongate-insights-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  runBtn.addEventListener('click', runQuery);
+  csvBtn.addEventListener('click', downloadCSV);
+  clrBtn.addEventListener('click', () => {
+    input.value = '';
+    results.innerHTML = '';
+    meta.textContent = '';
+    csvBtn.disabled = true;
+    lastData = null;
+    input.focus();
+  });
+  input.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runQuery();
+    }
+  });
+
+  document.querySelectorAll('.examples code').forEach(el => {
+    el.addEventListener('click', () => {
+      input.value = el.dataset.sql;
+      input.focus();
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

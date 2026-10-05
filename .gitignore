@@ -1,0 +1,13 @@
+node_modules/
+
+# Local configuration and secrets
+.env
+*.env
+src/.env
+
+# Transient SQLite journal files; keep the warehouse snapshot
+data/*.db-*
+
+# Editor and backup files
+.vscode/
+*.bak
